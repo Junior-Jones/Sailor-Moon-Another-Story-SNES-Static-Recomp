@@ -79,8 +79,8 @@ typedef struct SailorMoonAudioOutput {
     DWORD buffer_size_bytes;
     DWORD write_offset;
     DWORD previous_play_cursor;
-    uint64_t total_bytes_written;
-    uint64_t total_bytes_played;
+    ULONGLONG last_cursor_ms;
+    int needs_ring_clear;
     uint32_t target_latency_frames;
     uint32_t queue_history[SAILOR_MOON_AUDIO_QUEUE_HISTORY_CAPACITY];
     uint32_t queue_history_index;

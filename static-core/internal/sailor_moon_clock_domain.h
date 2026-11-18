@@ -2,12 +2,13 @@
 #define SAILOR_MOON_CLOCK_DOMAIN_H
 #include <stdint.h>
 
-/* Explicit functional profile, not physically phase-locked oscillators. */
+/* Deterministic NTSC timing profile matched to the qualified headless
+ * reference. S-CPU and SMP share the same master-clock conversion. */
 enum {
-    SM09_MASTER_NUMERATOR = 236250000u,
-    SM09_MASTER_DENOMINATOR = 11u,
-    SM09_SMP_NUMERATOR = 5632u,
-    SM09_SMP_DENOMINATOR = 118125u,
+    SM09_MASTER_NUMERATOR = 21477270u,
+    SM09_MASTER_DENOMINATOR = 1u,
+    SM09_SMP_NUMERATOR = 102400u,
+    SM09_SMP_DENOMINATOR = 2147727u,
     SM09_NORMAL_LINE = 1364u,
     SM09_SHORT_LINE = 1360u,
     SM09_FIELD_LINES = 262u

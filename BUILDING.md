@@ -1,4 +1,4 @@
-# Build Sailor Moon: Another Story 1.0.0
+# Build Sailor Moon: Another Story 1.0.1
 
 Use Windows x64, MinGW-w64 GCC/G++, CMake 3.20 or newer, Ninja and Python 3.
 The release used GCC 16.1.0. SDL 3.4.10 source is bundled; no other recomp

@@ -1,4 +1,6 @@
-# Sailor Moon: Another Story — Windows 1.0.0
+# Sailor Moon: Another Story — Windows 1.0.1
+
+<a href="https://recomplauncher.com/game/sailor-moon-another-story-snes-static-recomp"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
 
 [![Windows CI](https://github.com/Junior-Jones/Sailor-Moon-Another-Story/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/Junior-Jones/Sailor-Moon-Another-Story/actions/workflows/windows-ci.yml)
 

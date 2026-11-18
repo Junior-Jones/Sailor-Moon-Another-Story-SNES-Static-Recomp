@@ -35,7 +35,7 @@
 #define SRAM_FLUSH_INTERVAL_FRAMES 120u
 /* Do not let a flood of keyboard/window messages starve the frame timer. */
 #define MAX_HOST_MESSAGES_PER_PASS 32u
-#define HOST_LATE_REBASE_DIVISOR 8u
+#define HOST_LATE_REBASE_DIVISOR 1u
 
 #define ID_BROWSE 1001
 #define ID_RUN 1002
@@ -1460,7 +1460,7 @@ static void show_key_bindings(void) {
 
 static const wchar_t g_welcome_text[] =
     L"Welcome to Sailor Moon: Another Story (SNES) Static Recompilation\r\n\r\n"
-    L"Version 1.0.0\r\n"
+    L"Version 1.0.1\r\n"
     L"English translation: v2.08 (1 September 2021)\r\n\r\n"
     L"You can find the patched English translation on some ROM websites, but you will need to search for it yourself. If you cannot find a patched ROM, you can download the IPS patch from the website below and apply it to your ROM file.\r\n"
     L"https://www.romhacking.net/translations/4654/\r\n\r\n"
@@ -3520,7 +3520,7 @@ static LRESULT CALLBACK window_proc(HWND window, UINT message,
                         static const wchar_t about[] =
                             L"F1 - Open the Welcome window\r\n\r\n"
                             L"Sailor Moon: Another Story (SNES) Static Recompilation\r\n"
-                            L"Version 1.0.0\r\n\r\n"
+                            L"Version 1.0.1\r\n\r\n"
                             L"Title: Sailor Moon: Another Story\r\n"
                             L"Region: NTSC (English v2.08)\r\n"
                             L"File type: .sfc";
@@ -3716,6 +3716,7 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE previous,
     WNDCLASSEXW info_class;
     WNDCLASSEXW getting_started_class;
     MSG message;
+    int direct_launch = 0;
     (void)previous;
 
     g_instance = instance;
@@ -3725,7 +3726,19 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE previous,
         controls.dwICC = ICC_BAR_CLASSES;
         if (!InitCommonControlsEx(&controls)) return 1;
     }
-    (void)command_line;
+    if (command_line && *command_line) {
+        int argument_count = 0;
+        LPWSTR *arguments = CommandLineToArgvW(GetCommandLineW(), &argument_count);
+        if (arguments) {
+            for (int i = 1; i < argument_count; ++i) {
+                if (wcscmp(arguments[i], L"--game") == 0) {
+                    direct_launch = 1;
+                    break;
+                }
+            }
+            LocalFree(arguments);
+        }
+    }
     (void)show_command;
     if (!QueryPerformanceFrequency(&g_qpc_frequency) ||
         g_qpc_frequency.QuadPart <= 0) return 1;
@@ -3804,7 +3817,10 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE previous,
     ShowWindow(g_window, SW_SHOWNORMAL);
     UpdateWindow(g_window);
     g_startup_pending = 1;
-    if (!g_frontend_settings.welcome_shown) {
+    if (direct_launch && g_adjacent_rom_found) {
+        g_startup_pending = 0;
+        start_rom_load(1);
+    } else if (!g_frontend_settings.welcome_shown) {
         show_getting_started_window(1);
     } else {
         continue_startup_after_welcome();

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://recomplauncher.com/schema/recomplauncher.json",
+  "format": 1,
+  "name": "Sailor Moon: Another Story",
+  "repo": "Junior-Jones/Sailor-Moon-Another-Story-SNES-Static-Recomp",
+  "game": {
+    "kind": "iso",
+    "label": "Your own Japanese NTSC Sailor Moon: Another Story SNES ROM with the English v2.08 translation patch applied (unheadered, 4 MiB)."
+  },
+  "start": {
+    "program": [
+      "Launcher.exe"
+    ],
+    "args": [
+      "--game"
+    ]
+  },
+  "config": [
+    {
+      "id": "main",
+      "format": "ini",
+      "file": [
+        {
+          "path": "{install}/Settings.ini"
+        }
+      ],
+      "game_path": "ROM/Path"
+    }
+  ],
+  "saves": [
+    "{install}/Saves"
+  ],
+  "folders": {
+    "saves": [
+      {
+        "path": "{install}/Saves"
+      }
+    ],
+    "logs": [
+      {
+        "path": "{install}/Logs"
+      }
+    ]
+  },
+  "settings": [
+    {
+      "id": "fullscreen",
+      "label": "Full screen on Play",
+      "help": "Opens the game in full screen when Play starts.",
+      "in": "main",
+      "choices": [
+        {
+          "label": "On",
+          "set": {
+            "General/FullScreenOnPlay": "1"
+          }
+        },
+        {
+          "label": "Off",
+          "set": {
+            "General/FullScreenOnPlay": "0"
+          }
+        }
+      ],
+      "defaults": {
+        "General/FullScreenOnPlay": "0"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "id": "saves",
+      "label": "Saves",
+      "help": "In-game battery saves and snapshots.",
+      "open": "saves"
+    }
+  ],
+  "requires": [
+    "start",
+    "settings.ini",
+    "settings.choices"
+  ]
+}
