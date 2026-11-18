@@ -46,6 +46,6 @@ jobs:
       - name: Build Release
         run: cmake --build build/ci --target Launcher --parallel 2
       - name: Verify RecompLauncher manifest is beside the executable
-        run: cmp recomplauncher.json build/ci/release/recomplauncher.json
+        run: cmake -E compare_files recomplauncher.json build/ci/release/recomplauncher.json
       - name: Verify Windows x64 and static runtime dependencies
         run: python tools/check_windows_binary.py build/ci/release/Launcher.exe
