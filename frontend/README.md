@@ -12,7 +12,7 @@ The build produces Launcher.exe and its release documents.
 
 External ROM: exact4194304-byte Englishv2.08 cartridge, SHA checked by the core.
 No512-byte container/trailing bytes/ROM bundling. Native frame256x224,
-signed16 stereo32000Hz, exact presentation39375000/655171; host timing never
+signed16 stereo32000Hz, exact presentation3579545/59561; host timing never
 advances guest clocks. Titles: Launcher; Sailor Moon: Another Story (SNES).
 Optional FPS is a host-only overlay, not core framebuffer/title content.
 

@@ -1,6 +1,28 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "contexts": 68539,
   "shared_native_bodies": 440,
-  "library_sha256": "6a6e94b60a879e0edc8ec1c29774ce4ba5ff6448505869c1bfc2fa74e0bf1e59"
+  "library_sha256": "2298512c6dd490ec0b63e9100352a01e0fdf00a06d6643345f583b0743039135",
+  "previous_library_sha256": "6a6e94b60a879e0edc8ec1c29774ce4ba5ff6448505869c1bfc2fa74e0bf1e59",
+  "timing_profile": {
+    "master_hz": 21477270,
+    "smp_hz": 1024000,
+    "native_pcm_hz": 32000,
+    "presentation_ratio": [
+      3579545,
+      59561
+    ],
+    "smp_ratio": [
+      102400,
+      2147727
+    ],
+    "cold_field": "even; first short scanline on the next odd field"
+  },
+  "rebuilt_archive_members": [
+    "sailor_moon_clock_domain.c.obj",
+    "sailor_moon_apu13.c.obj",
+    "sailor_moon_scheduler_pair.c.obj",
+    "sailor_moon_core_snapshot.c.obj",
+    "sailor_moon_core.c.obj"
+  ]
 }

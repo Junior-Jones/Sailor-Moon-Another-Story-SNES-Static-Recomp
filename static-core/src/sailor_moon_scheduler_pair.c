@@ -58,7 +58,9 @@ static Sm08Status sm09_due(Sm09Scheduler *s) {
         if ((s->processed_events & bit) != 0u) continue;
         switch ((Sm09RasterEvent)event) {
             case SM09_RASTER_LINE_BEGIN: break;
-            case SM09_RASTER_FIELD_TOGGLE: at = 4u; applies = s->scanline == 0u; break;
+            case SM09_RASTER_FIELD_TOGGLE:
+                /* Cold field is even. Only a completed field starts the next parity. */
+                at = 4u; applies = s->scanline == 0u && s->completed_fields != 0u; break;
             case SM09_RASTER_HBLANK_BEGIN: at = 1096u; break;
             case SM09_RASTER_HBLANK_END: at = 4u; break;
             case SM09_RASTER_VBLANK_BEGIN: applies = s->scanline == blank; break;

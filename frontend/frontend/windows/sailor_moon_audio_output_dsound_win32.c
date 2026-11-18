@@ -77,12 +77,12 @@ void sailor_moon_audio_settings_defaults(SailorMoonAudioSettings *settings) {
     if (!settings) return;
     memset(settings, 0, sizeof(*settings));
     settings->enabled = 1;
-    settings->volume_percent = 50;
+    settings->volume_percent = 25;
     settings->latency_enabled = 0;
     settings->latency_ms = AUDIO_DEFAULT_LATENCY_MS;
     settings->output_sample_rate = 48000;
     settings->resampler_mode = SAILOR_MOON_AUDIO_RESAMPLER_HERMITE;
-    settings->safety_buffer_ms = 90;
+    settings->safety_buffer_ms = SAILOR_MOON_AUDIO_MAX_SAFETY_BUFFER_MS;
     settings->ring_buffer_ms = 250;
     settings->drift_correction_enabled = 1;
     settings->drift_tolerance_ms = 3;
@@ -93,7 +93,7 @@ void sailor_moon_audio_settings_defaults(SailorMoonAudioSettings *settings) {
     settings->recovery_threshold_ms = 50;
     settings->realign_on_underrun = 1;
     settings->clear_on_pause = 0;
-    settings->resume_fade_ms = 0;
+    settings->resume_fade_ms = 5;
 }
 
 void sailor_moon_audio_settings_load(SailorMoonAudioSettings *settings,
@@ -342,6 +342,7 @@ static int clear_secondary_buffer(SailorMoonAudioOutput *output) {
     if (FAILED(result)) return 0;
     (void)IDirectSoundBuffer8_SetCurrentPosition(output->secondary_buffer, 0u);
     output->write_offset = 0u;
+    output->needs_ring_clear = 0;
     return 1;
 }
 
@@ -511,22 +512,6 @@ fail:
     return 0;
 }
 
-static void validate_write_cursor(SailorMoonAudioOutput *output,
-                                  DWORD safe_write_cursor) {
-    int32_t write_gap;
-    if (!output) return;
-    write_gap = (int32_t)output->write_offset - (int32_t)safe_write_cursor;
-    /* This is Mesen's DirectSound underrun rule.  If the driver's protected
-       write cursor has only just overtaken our producer, move forward to the
-       first safe byte instead of overwriting audio the device is consuming.
-       A large negative value is the normal ring-wrap case. */
-    if (write_gap < 0 && write_gap >= -10000) {
-        output->diagnostics.underruns++;
-        if (output->realign_on_underrun)
-            output->write_offset = safe_write_cursor;
-    }
-}
-
 static int get_cursors(SailorMoonAudioOutput *output,
                        DWORD *play_cursor, DWORD *safe_write_cursor) {
     DWORD play;
@@ -608,9 +593,51 @@ void sailor_moon_audio_output_pause(SailorMoonAudioOutput *output) {
     }
 }
 
+static DWORD ring_distance(DWORD from, DWORD to, DWORD capacity) {
+    return to >= from ? to - from : capacity - from + to;
+}
+
+static int recover_stale_ring(SailorMoonAudioOutput *output) {
+    DWORD play, safe, consumed, queued, protected_bytes;
+    ULONGLONG now;
+    if (!output->playing || output->paused) return 1;
+    if (!get_cursors(output, &play, &safe)) return 0;
+    now = GetTickCount64();
+    consumed = ring_distance(output->previous_play_cursor, play,
+                             output->buffer_size_bytes);
+    queued = ring_distance(output->previous_play_cursor, output->write_offset,
+                           output->buffer_size_bytes);
+    protected_bytes = ring_distance(play, safe, output->buffer_size_bytes);
+    /* A driver can wrap or reset the reported cursor during a stall.
+       Allow 25 ms for clock granularity and driver position reporting. */
+    if (now - output->last_cursor_ms > 25u &&
+        (now - output->last_cursor_ms - 25u) *
+            (unsigned)output->device_sample_rate * AUDIO_BLOCK_ALIGN_BYTES >=
+            (uint64_t)queued * 1000u) {
+        consumed = queued;
+    }
+    if ((uint64_t)consumed + protected_bytes >= queued) {
+        output->diagnostics.underruns++;
+        if (output->realign_on_underrun) {
+            if (FAILED(IDirectSoundBuffer8_Stop(output->secondary_buffer)))
+                return 0;
+            output->playing = 0;
+            output->priming = 1;
+            output->needs_ring_clear = 1;
+            reset_rate_control(output);
+        }
+    }
+    output->previous_play_cursor = play;
+    output->last_cursor_ms = now;
+    return 1;
+}
+
 static int start_playback(SailorMoonAudioOutput *output) {
     HRESULT result;
     if (!output || !output->secondary_buffer) return 0;
+    if (!get_cursors(output, &output->previous_play_cursor, NULL))
+        return 0;
+    output->last_cursor_ms = GetTickCount64();
     result = IDirectSoundBuffer8_Play(
         output->secondary_buffer, 0u, 0u, DSBPLAY_LOOPING);
     if (FAILED(result)) {
@@ -626,7 +653,7 @@ void sailor_moon_audio_output_resume(SailorMoonAudioOutput *output) {
     if (!output || !output->secondary_buffer || !output->paused) return;
     output->paused = 0;
     queued = queued_host_frames(output);
-    output->priming = queued < output->target_latency_frames / 2u;
+    output->priming = queued < output->target_latency_frames * 3u / 4u;
     output->fade_frames_remaining = output->fade_frames_total;
     if (!output->priming) (void)start_playback(output);
 }
@@ -747,14 +774,10 @@ static int write_secondary_buffer(SailorMoonAudioOutput *output,
     DWORD second_size = 0u;
     DWORD byte_count;
     HRESULT result;
-    DWORD safe_write_cursor;
     if (!output || !output->secondary_buffer || !samples || !frame_count)
         return 0;
     byte_count = (DWORD)(frame_count * AUDIO_BLOCK_ALIGN_BYTES);
     if (byte_count > output->buffer_size_bytes) return 0;
-    if (!get_cursors(output, NULL, &safe_write_cursor)) return 0;
-    /* Mesen PlayBuffer validation: realign only at an actual submission. */
-    validate_write_cursor(output, safe_write_cursor);
     result = IDirectSoundBuffer8_Lock(
         output->secondary_buffer, output->write_offset, byte_count,
         &first, &first_size, &second, &second_size, 0u);
@@ -801,13 +824,20 @@ static void pump_audio(SailorMoonAudioOutput *output,
                            SAILOR_MOON_RECOMP_AUDIO_CHANNELS];
     int16_t host_staging[AUDIO_HOST_STAGING_FRAMES *
                          SAILOR_MOON_RECOMP_AUDIO_CHANNELS];
-    if (output && output->secondary_buffer && !output->paused &&
-        output->playing) {
-        uint32_t queue_before = queued_host_frames(output);
-        int starved = queue_before == 0u;
-        if (starved && !output->starved_last_pump)
-            output->diagnostics.underruns++;
-        output->starved_last_pump = starved;
+    if (output && output->secondary_buffer && !output->paused) {
+        if (!recover_stale_ring(output)) {
+            output->diagnostics.queue_failures++;
+            return;
+        }
+        if (output->needs_ring_clear) {
+            if (!clear_secondary_buffer(output)) {
+                output->diagnostics.queue_failures++;
+                return;
+            }
+            output->needs_ring_clear = 0;
+            output->fade_frames_remaining = output->fade_frames_total;
+            output->diagnostics.queue_recoveries++;
+        }
     }
     if (!game) return;
     while (sailor_moon_recomp_audio_available(game) > 0u) {
@@ -830,13 +860,6 @@ static void pump_audio(SailorMoonAudioOutput *output,
         }
     }
     if (!output || !output->secondary_buffer) return;
-    if (end_of_frame) {
-        DWORD safe_write_cursor;
-        /* Mesen ProcessEndOfFrame validation.  This is deliberately the only
-           validation outside actual buffer submission. */
-        if (get_cursors(output, NULL, &safe_write_cursor))
-            validate_write_cursor(output, safe_write_cursor);
-    }
     output->diagnostics.queue_depth_frames = queued_host_frames(output);
     output->diagnostics.safe_queue_depth_frames = safe_queue_frames(output);
     if (output->diagnostics.peak_queue_depth_frames <
@@ -845,9 +868,8 @@ static void pump_audio(SailorMoonAudioOutput *output,
             output->diagnostics.queue_depth_frames;
     if (output->priming && !output->paused &&
         output->diagnostics.queue_depth_frames >=
-            output->target_latency_frames / 2u) {
-        /* Exact Mesen startup rule: begin playback once half the requested
-           latency has been written relative to the play cursor. */
+            output->target_latency_frames * 3u / 4u) {
+        /* Allow room for the device startup lead and frame-sized writes. */
         if (start_playback(output)) output->priming = 0;
     }
     if (end_of_frame && !output->paused && !output->priming &&

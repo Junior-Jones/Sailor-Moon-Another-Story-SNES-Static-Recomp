@@ -1,10 +1,18 @@
 Sailor Moon: Another Story (SNES) Static Recompilation
-Version: 1.0.0
+Version: 1.0.1
 Platform: Native 64-bit Windows 10 and Windows 11
 Executable: Launcher.exe
 ROM: Japan NTSC with English translation v2.08; required externally
 
-Version 1.0.0 release summary
+Audio fix in 1.0.1
+------------------
+- Detect lag across DirectSound cursor wrap, clear stale audio and refill.
+- Keep the NTSC schedule through minor host delays and add audio buffer headroom.
+- Default output volume reduced from 50% to 25%.
+- Native clock conversion and cold field parity match the headless reference.
+  Previous snapshots use a different clock state. Battery saves are compatible.
+
+Version 1.0.1 release summary
 -----------------------------
 - Target-specific ahead-of-time S-CPU, S-SMP and S-DSP execution.
 - Live graphics, audio and input; fail-closed execution without an interpreter,
@@ -24,11 +32,11 @@ Static-core summary
 - Bus, memory, CPU I/O, IRQ/NMI, DMA/HDMA, input, PPU, raster scheduling,
   static audio-driver and 32-phase S-DSP ownership remain in the native core.
 
-Version 1.0.0 frontend features
+Version 1.0.1 frontend features
 --------------------------------
 - Portable x64 Win32 launcher with keyboard-accessible menus and dialogs.
 - SDL3 and compiler support runtimes statically linked; no separate SDL DLL.
-- First-run Welcome identifies application 1.0.0 and English translation v2.08.
+- First-run Welcome identifies application 1.0.1 and English translation v2.08.
 - Windowed/full-screen presentation, scaling, FPS display and screenshots.
 - Mandatory natural NTSC pacing at approximately 60.0988 FPS.
 - Configurable one-player keyboard/gamepad bindings and input source.

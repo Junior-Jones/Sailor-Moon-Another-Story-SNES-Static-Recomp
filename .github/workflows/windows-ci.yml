@@ -45,5 +45,7 @@ jobs:
           -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
       - name: Build Release
         run: cmake --build build/ci --target Launcher --parallel 2
+      - name: Verify RecompLauncher manifest is beside the executable
+        run: cmp recomplauncher.json build/ci/release/recomplauncher.json
       - name: Verify Windows x64 and static runtime dependencies
         run: python tools/check_windows_binary.py build/ci/release/Launcher.exe

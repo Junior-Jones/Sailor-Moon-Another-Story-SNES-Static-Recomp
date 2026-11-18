@@ -1,5 +1,5 @@
 Sailor Moon: Another Story (SNES) Static Recompilation
-Version 1.0.0
+Version 1.0.1
 Native 64-bit Windows 10 and Windows 11
 
 Running the application

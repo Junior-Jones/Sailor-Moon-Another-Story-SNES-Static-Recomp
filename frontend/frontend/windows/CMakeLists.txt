@@ -67,4 +67,5 @@ add_custom_command(TARGET Launcher POST_BUILD
   COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SAILOR_MOON_FRONTEND_ROOT}/README.txt" "$<TARGET_FILE_DIR:Launcher>/README.txt"
   COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SAILOR_MOON_FRONTEND_ROOT}/VERSION.txt" "$<TARGET_FILE_DIR:Launcher>/VERSION.txt"
   COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SAILOR_MOON_FRONTEND_ROOT}/THIRD-PARTY-NOTICES.txt" "$<TARGET_FILE_DIR:Launcher>/THIRD-PARTY-NOTICES.txt"
-  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SAILOR_MOON_FRONTEND_ROOT}/licenses/SDL-LICENSE.txt" "$<TARGET_FILE_DIR:Launcher>/SDL-LICENSE.txt" VERBATIM)
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SAILOR_MOON_FRONTEND_ROOT}/licenses/SDL-LICENSE.txt" "$<TARGET_FILE_DIR:Launcher>/SDL-LICENSE.txt"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SAILOR_MOON_PROJECT_ROOT}/recomplauncher.json" "$<TARGET_FILE_DIR:Launcher>/recomplauncher.json" VERBATIM)

@@ -354,8 +354,8 @@ int sm_core_pcm_metrics(const SmCore *c,Sm16PcmMetrics *out) {
 }
 int sm_core_timing(SmCoreTiming *out) {
     if(out==NULL) return 0;
-    *out=(SmCoreTiming){236250000u,11u,39375000u,655171u,1024000u,32000u,
-                        5632u,118125u,1364u,1360u,262u,256u,224u,186u};
+    *out=(SmCoreTiming){SM09_MASTER_NUMERATOR,SM09_MASTER_DENOMINATOR,3579545u,59561u,1024000u,32000u,
+                        SM09_SMP_NUMERATOR,SM09_SMP_DENOMINATOR,SM09_NORMAL_LINE,SM09_SHORT_LINE,SM09_FIELD_LINES,256u,224u,186u};
     return 1;
 }
 int sm_core_build_identity(uint8_t out[32]) {
