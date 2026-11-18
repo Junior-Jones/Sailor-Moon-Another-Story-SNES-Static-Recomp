@@ -597,6 +597,31 @@ static DWORD ring_distance(DWORD from, DWORD to, DWORD capacity) {
     return to >= from ? to - from : capacity - from + to;
 }
 
+static void observe_protected_lead(SailorMoonAudioOutput *output,
+                                   DWORD play, DWORD safe) {
+    DWORD lead = ring_distance(play, safe, output->buffer_size_bytes);
+    if (lead > output->protected_lead_bytes)
+        output->protected_lead_bytes = lead;
+}
+
+static uint32_t device_queue_floor(const SailorMoonAudioOutput *output) {
+    /* A stopped device may report no write lead. Keep the lead observed
+       during playback, plus two video fields of PCM for producer cadence
+       and normal scheduling jitter. */
+    uint32_t field_frames = (uint32_t)(
+        ((uint64_t)output->device_sample_rate *
+             SAILOR_MOON_RECOMP_PRESENTATION_FPS_DENOMINATOR +
+         SAILOR_MOON_RECOMP_PRESENTATION_FPS_NUMERATOR - 1u) /
+        SAILOR_MOON_RECOMP_PRESENTATION_FPS_NUMERATOR);
+    uint32_t lead_frames = (output->protected_lead_bytes +
+        AUDIO_BLOCK_ALIGN_BYTES - 1u) / AUDIO_BLOCK_ALIGN_BYTES;
+    uint32_t floor = lead_frames + 2u * field_frames;
+    uint32_t ring_frames = output->buffer_size_bytes / AUDIO_BLOCK_ALIGN_BYTES;
+    uint32_t limit = ring_frames > field_frames ?
+        ring_frames - field_frames : ring_frames - 1u;
+    return floor < limit ? floor : limit;
+}
+
 static int recover_stale_ring(SailorMoonAudioOutput *output) {
     DWORD play, safe, consumed, queued, protected_bytes;
     ULONGLONG now;
@@ -608,6 +633,7 @@ static int recover_stale_ring(SailorMoonAudioOutput *output) {
     queued = ring_distance(output->previous_play_cursor, output->write_offset,
                            output->buffer_size_bytes);
     protected_bytes = ring_distance(play, safe, output->buffer_size_bytes);
+    observe_protected_lead(output, play, safe);
     /* A driver can wrap or reset the reported cursor during a stall.
        Allow 25 ms for clock granularity and driver position reporting. */
     if (now - output->last_cursor_ms > 25u &&
@@ -634,9 +660,16 @@ static int recover_stale_ring(SailorMoonAudioOutput *output) {
 
 static int start_playback(SailorMoonAudioOutput *output) {
     HRESULT result;
-    if (!output || !output->secondary_buffer) return 0;
-    if (!get_cursors(output, &output->previous_play_cursor, NULL))
-        return 0;
+    DWORD play, safe;
+    uint32_t queued, required, floor;
+    if (!get_cursors(output, &play, &safe)) return 0;
+    observe_protected_lead(output, play, safe);
+    queued = ring_distance(play, output->write_offset,
+                           output->buffer_size_bytes) / AUDIO_BLOCK_ALIGN_BYTES;
+    required = output->target_latency_frames * 3u / 4u;
+    floor = device_queue_floor(output);
+    if (queued < required || queued < floor) return 0;
+    output->previous_play_cursor = play;
     output->last_cursor_ms = GetTickCount64();
     result = IDirectSoundBuffer8_Play(
         output->secondary_buffer, 0u, 0u, DSBPLAY_LOOPING);
@@ -649,13 +682,10 @@ static int start_playback(SailorMoonAudioOutput *output) {
 }
 
 void sailor_moon_audio_output_resume(SailorMoonAudioOutput *output) {
-    uint32_t queued;
     if (!output || !output->secondary_buffer || !output->paused) return;
     output->paused = 0;
-    queued = queued_host_frames(output);
-    output->priming = queued < output->target_latency_frames * 3u / 4u;
     output->fade_frames_remaining = output->fade_frames_total;
-    if (!output->priming) (void)start_playback(output);
+    output->priming = !start_playback(output);
 }
 
 int sailor_moon_audio_output_is_open(const SailorMoonAudioOutput *output) {
@@ -683,9 +713,9 @@ static void process_end_of_frame(SailorMoonAudioOutput *output) {
     (void)IDirectSoundBuffer8_SetFrequency(output->secondary_buffer,
                                             (DWORD)output->device_sample_rate);
     if (output->priming || output->paused || !output->playing) return;
-    /* Mesen BaseSoundManager measures latency from the play cursor to the
-       producer cursor.  The protected DirectSound write cursor is only for
-       underrun validation and must not be used as the latency target. */
+    /* Measure from the play cursor to the producer cursor. When the chosen
+       latency is below the device floor, keep drift correction from draining
+       the PCM that is needed to stay ahead of the protected write cursor. */
     queue_frames = queued_host_frames(output);
     output->queue_history[output->queue_history_index] = queue_frames;
     output->queue_history_index = (output->queue_history_index + 1u) %
@@ -700,9 +730,13 @@ static void process_end_of_frame(SailorMoonAudioOutput *output) {
         ((double)queue_sum / (double)output->averaging_frames) * 1000.0 /
         (double)output->device_sample_rate;
     output->diagnostics.average_latency_ms = (float)average_latency_ms;
-    latency_gap = average_latency_ms -
-        ((double)output->target_latency_frames * 1000.0 /
-         (double)output->device_sample_rate);
+    {
+        uint32_t target = output->target_latency_frames;
+        uint32_t floor = device_queue_floor(output);
+        if (target < floor) target = floor;
+        latency_gap = average_latency_ms -
+            ((double)target * 1000.0 / (double)output->device_sample_rate);
+    }
     if (!output->drift_correction_enabled) {
         output->under_target = 0;
         output->playback_ratio = 1.0;
@@ -866,12 +900,8 @@ static void pump_audio(SailorMoonAudioOutput *output,
         output->diagnostics.queue_depth_frames)
         output->diagnostics.peak_queue_depth_frames =
             output->diagnostics.queue_depth_frames;
-    if (output->priming && !output->paused &&
-        output->diagnostics.queue_depth_frames >=
-            output->target_latency_frames * 3u / 4u) {
-        /* Allow room for the device startup lead and frame-sized writes. */
-        if (start_playback(output)) output->priming = 0;
-    }
+    if (output->priming && !output->paused && start_playback(output))
+        output->priming = 0;
     if (end_of_frame && !output->paused && !output->priming &&
         output->playing) {
         if (output->diagnostics.queue_depth_frames > 0u)
